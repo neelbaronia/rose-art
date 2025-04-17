@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rose ASCII Art</title>
+  <style>
+    body {
+      background: #fff;
+      color: #222;
+      font-family: 'Courier New', Courier, monospace;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+    }
+    h1 {
+      margin-top: 32px;
+      margin-bottom: 0;
+      font-size: 2.2rem;
+      letter-spacing: 2px;
+      color: #b30059;
+    }
+    #ascii-art {
+      white-space: pre;
+      font-size: 18px;
+      line-height: 16px;
+      letter-spacing: 1.5px;
+      background: #fafafa;
+      padding: 24px;
+      border-radius: 10px;
+      margin-top: 32px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+      overflow-x: auto;
+      max-width: 98vw;
+      min-width: 320px;
+    }
+    #rose-img {
+      display: none;
+    }
+    @media (max-width: 600px) {
+      #ascii-art {
+        font-size: 7px;
+        line-height: 6px;
+        padding: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Rose ASCII Art</h1>
+  <div id="ascii-art">Loading...</div>
+  <img id="rose-img" src="rose-art.png" alt="Rose" crossorigin="anonymous">
+  <script>
+    const charSet = ' .:-=+*#%@';
+    const asciiArtDiv = document.getElementById('ascii-art');
+    const img = document.getElementById('rose-img');
+    img.onload = function() {
+      // Set desired width for ASCII art (in characters)
+      const asciiWidth = 180; // Larger width
+      // Calculate aspect ratio correction for font
+      const fontAspect = 0.55; // tweak for monospace font
+      const scale = asciiWidth / img.width;
+      const asciiHeight = Math.round(img.height * scale * fontAspect);
+      // Draw image to canvas
+      const canvas = document.createElement('canvas');
+      canvas.width = asciiWidth;
+      canvas.height = asciiHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, asciiWidth, asciiHeight);
+      const imageData = ctx.getImageData(0, 0, asciiWidth, asciiHeight);
+      let ascii = '';
+      for (let y = 0; y < asciiHeight; y++) {
+        for (let x = 0; x < asciiWidth; x++) {
+          const offset = (y * asciiWidth + x) * 4;
+          const r = imageData.data[offset];
+          const g = imageData.data[offset + 1];
+          const b = imageData.data[offset + 2];
+          // Convert RGB to HSL
+          function rgbToHsl(r, g, b) {
+            r /= 255; g /= 255; b /= 255;
+            const max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h, s, l = (max + min) / 2;
+            if (max === min) {
+              h = s = 0;
+            } else {
+              const d = max - min;
+              s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+              switch (max) {
+                case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                case g: h = (b - r) / d + 2; break;
+                case b: h = (r - g) / d + 4; break;
+              }
+              h /= 6;
+            }
+            return [h, s, l];
+          }
+          function hslToRgb(h, s, l) {
+            let r, g, b;
+            if (s === 0) {
+              r = g = b = l;
+            } else {
+              function hue2rgb(p, q, t) {
+                if (t < 0) t += 1;
+                if (t > 1) t -= 1;
+                if (t < 1/6) return p + (q - p) * 6 * t;
+                if (t < 1/2) return q;
+                if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                return p;
+              }
+              const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+              const p = 2 * l - q;
+              r = hue2rgb(p, q, h + 1/3);
+              g = hue2rgb(p, q, h);
+              b = hue2rgb(p, q, h - 1/3);
+            }
+            return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+          }
+          // Boost saturation
+          let [h, s, l] = rgbToHsl(r, g, b);
+          s = Math.min(1, s * 1.8); // Increase saturation by 80%, clamp to 1
+
+          // Heuristic: dark hair = low lightness, low saturation; wall = high lightness, low saturation
+          if (s < 0.25) {
+            if (l < 0.28) {
+              // Likely hair: darken further
+              l = Math.max(0, l * 0.7);
+            } else if (l > 0.72) {
+              // Likely wall: lighten further
+              l = Math.min(1, l + (1 - l) * 0.45);
+            }
+          }
+
+          let [r2, g2, b2] = hslToRgb(h, s, l);
+          // Luminance formula
+          const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+          const charIdx = Math.floor((brightness / 255) * (charSet.length - 1));
+          const char = charSet[charIdx];
+          ascii += `<span style='color: rgb(${r2},${g2},${b2})'>${char}</span>`;
+        }
+        ascii += '<br>';
+      }
+      asciiArtDiv.innerHTML = ascii;
+    };
+    img.onerror = function() {
+      asciiArtDiv.textContent = 'Failed to load rose-art.png.';
+    };
+  </script>
+</body>
+</html>
