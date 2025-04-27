@@ -55,10 +55,20 @@
   <div id="ascii-art">Loading...</div>
   <img id="rose-img" src="rose-art.png" alt="Rose" crossorigin="anonymous">
   <script>
-    const charSet = '?!:+#%@&-/|\\∞';
+    const charSet = '?◊»#‰R%@';
     // const charSet2 = ' :-=+*#%/{}\\';
     const asciiArtDiv = document.getElementById('ascii-art');
     const img = document.getElementById('rose-img');
+    function renderAsciiArt() {
+      // (code from img.onload goes here)
+    }
+
+    function setupAsciiArt() {
+      // (code from img.onload goes here, except for the img.onload assignment)
+    }
+
+    let colorShift = {r: 128, g: 128, b: 128}; // initial color shift
+
     img.onload = function() {
       // Crop the leftmost 1/10th of the PNG image
       const cropX = Math.round(img.width / 10);
@@ -66,12 +76,13 @@
       const cropHeight = img.height;
 
       // Set desired width for ASCII art (in characters)
-      const asciiWidth = 113; // keep width as before
+      const asciiWidth = Math.floor(113 * .8); // decrease width by 20%
       // Calculate aspect ratio correction for font
       const fontAspect = 0.55; // tweak for monospace font
       // To match the cropped image aspect ratio, solve for asciiHeight:
       // asciiHeight / asciiWidth = (cropHeight / cropWidth) * fontAspect
-      const asciiHeight = Math.round((cropHeight / cropWidth) * asciiWidth * fontAspect);
+      const asciiHeight = Math.round((cropHeight / cropWidth) * asciiWidth * fontAspect); // height auto-adjusts to width
+
       // Draw cropped image to canvas
       const canvas = document.createElement('canvas');
       canvas.width = asciiWidth;
@@ -86,8 +97,10 @@
 
       // Precompute color and brightness info for each pixel
       const pixelInfo = [];
+      const charIdxState = [];
       for (let y = 0; y < asciiHeight; y++) {
         let row = [];
+        let charRow = [];
         for (let x = 0; x < asciiWidth; x++) {
           const offset = (y * asciiWidth + x) * 4;
           const r = imageData.data[offset];
@@ -153,8 +166,10 @@
           const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
           const charIdx = Math.floor((brightness / 255) * (charSet.length - 1));
           row.push({r: r2, g: g2, b: b2, charIdx, x, y});
+          charRow.push(charIdx);
         }
         pixelInfo.push(row);
+        charIdxState.push(charRow);
       }
 
       // Ripple animation state
@@ -162,7 +177,7 @@
       let rippleFrame = 0;
       let rippleOrigin = {x: Math.floor(asciiWidth/2), y: Math.floor(asciiHeight/2)};
       let lastClick = null;
-      const rippleSpeed = 0.1; // characters per frame (4x baseline, very fast ripple)
+      const rippleSpeed = .5; // slower ripple: characters per frame
       const rippleFrameInterval = 10; // ms per frame
       let lastFrameTime = 0;
 
@@ -180,22 +195,23 @@
             let char;
             // Override row with first custom text, shifted right by 4
             if (y === overrideRow && x >= 4 && x < 4 + overrideText.length) {
-              char = overrideText[x - 4];
+              char = `<span style='font-weight:bold'>${overrideText[x - 4]}</span>`;
             // Override row below with second custom text, shifted right by 4
             } else if (y === overrideRow + 1 && x >= 4 && x < 4 + overrideText2.length) {
-              char = overrideText2[x - 4];
+              char = `<span style='font-weight:bold'>${overrideText2[x - 4]}</span>`;
             // Override row below with third custom text, shifted right by 4
             } else if (y === overrideRow + 3 && x >= 4 && x < 4 + overrideText3.length) {
-              char = overrideText3[x - 4];
+              char = `<span style='font-weight:bold'>${overrideText3[x - 4]}</span>`;
             // Override row below with fourth custom text, shifted right by 4
-            } else if (y === overrideRow + 5 && x >= 4 && x < 4 + overrideText4.length) {
-              char = overrideText4[x - 4];
+            } else if (y === overrideRow + 4 && x >= 4 && x < 4 + overrideText4.length) {
+              char = `<span style='font-weight:bold'>${overrideText4[x - 4]}</span>`;
             // Override row below with fifth custom text, shifted right by 4
-            } else if (y === overrideRow + 7 && x >= 4 && x < 4 + overrideText5.length) {
-              char = overrideText5[x - 4];
+            } else if (y === overrideRow + 5 && x >= 4 && x < 4 + overrideText5.length) {
+              char = `<span style='font-weight:bold'>${overrideText5[x - 4]}</span>`;
             } else {
               const pix = pixelInfo[y][x];
-              char = charSet[pix.charIdx];
+              char = charSet[pixelInfo[y][x].charIdx];
+              let color = `rgb(${pixelInfo[y][x].r},${pixelInfo[y][x].g},${pixelInfo[y][x].b})`;
               if (rippleActive && lastClick) {
                 const dx = x - rippleOrigin.x;
                 const dy = y - rippleOrigin.y;
@@ -204,11 +220,16 @@
                 const rippleStart = dist * rippleSpeed;
                 const rippleEnd = rippleStart + charSet.length;
                 if (rippleFrame > rippleStart && rippleFrame <= rippleEnd) {
-                  const dynamicIdx = (pix.charIdx + Math.floor(rippleFrame - rippleStart)) % charSet.length;
+                  const dynamicIdx = (pixelInfo[y][x].charIdx + Math.floor(rippleFrame - rippleStart)) % charSet.length;
                   char = charSet[dynamicIdx];
+                  // Shift color during ripple by per-click colorShift
+                  let sr = (pixelInfo[y][x].r + colorShift.r) % 256;
+                  let sg = (pixelInfo[y][x].g + colorShift.g) % 256;
+                  let sb = (pixelInfo[y][x].b + colorShift.b) % 256;
+                  color = `rgb(${sr},${sg},${sb})`;
                 }
               }
-              char = `<span style='color: rgb(${pix.r},${pix.g},${pix.b})'>${char}</span>`;
+              char = `<span style='color: ${color}'>${char}</span>`;
             }
             ascii += char;
           }
@@ -230,8 +251,20 @@
         if (rippleFrame < maxDist * rippleSpeed + charSet.length) {
           if (rippleActive) requestAnimationFrame(animateRipple);
         } else {
+          // After ripple, update charIdxState for all pixels affected by this ripple
+          for (let y = 0; y < asciiHeight; y++) {
+            for (let x = 0; x < asciiWidth; x++) {
+              const dx = x - rippleOrigin.x;
+              const dy = y - rippleOrigin.y;
+              const dist = Math.sqrt(dx*dx + dy*dy);
+              const rippleStart = dist * rippleSpeed;
+              if (rippleFrame > rippleStart + 1) {
+                charIdxState[y][x] = (charIdxState[y][x] + 1) % charSet.length;
+              }
+            }
+          }
           rippleActive = false;
-          renderRippleFrame(); // Ensure all revert to original
+          renderRippleFrame(); // Ensure all revert to new state
         }
       }
 
@@ -251,15 +284,41 @@
         lastClick = {x: gridX, y: gridY};
         rippleActive = true;
         lastFrameTime = 0;
+        // Generate a new color shift for this click (randomized but visible)
+        colorShift = {
+          r: Math.floor(Math.random()*150) + 50,
+          g: Math.floor(Math.random()*150) + 50,
+          b: Math.floor(Math.random()*150) + 50
+        };
         requestAnimationFrame(animateRipple);
       });
 
       // Initial render (static)
       renderRippleFrame(0);
+
+      
     };
     img.onerror = function() {
       asciiArtDiv.textContent = 'Failed to load rose-art.png.';
     };
+
+    function animateRipple(ts) {
+      if (!lastFrameTime) lastFrameTime = ts;
+      if (ts - lastFrameTime >= rippleFrameInterval) {
+        rippleFrame++;
+        lastFrameTime = ts;
+      }
+      renderRippleFrame(ts);
+      // Compute max distance from origin to corner
+      const maxDist = Math.sqrt(Math.max(rippleOrigin.x, asciiWidth - rippleOrigin.x) ** 2 + Math.max(rippleOrigin.y, asciiHeight - rippleOrigin.y) ** 2);
+      // Stop animation after one full loop for all points
+      if (rippleFrame < maxDist * rippleSpeed + charSet.length) {
+        if (rippleActive) requestAnimationFrame(animateRipple);
+      } else {
+        rippleActive = false;
+        renderRippleFrame(); // Ensure all revert to original
+      }
+    }
   </script>
 </body>
 </html>
